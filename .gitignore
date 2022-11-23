@@ -1,0 +1,10 @@
+*.idea/
+*.xlsx
+scrapy/
+estimate/
+pytorch/data
+pytorch/dataloader
+pytorch/dataset
+pytorch/datatest
+pytorch/logs
+pytorch/save
