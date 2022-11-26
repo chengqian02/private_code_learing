@@ -1,9 +1,7 @@
-# author: hcx
 import tensorflow as tf
-print("------")
-with tf.GradientTape() as tape:
-    w = tf.Variable(tf.constant(3,0))
-    loss = tf.pow(w, 2)
-grad = tape.gradient(loss, w)
-print(grad)
-
+# tf.one_hot(待转换数据,depth=几分类)
+classes = 3
+labels = tf.constant([1, 0, 2, 3])
+output = tf.one_hot(labels, depth=4)
+print(labels)
+print(output)
