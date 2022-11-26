@@ -5,3 +5,4 @@ labels = tf.constant([1, 0, 2, 3])
 output = tf.one_hot(labels, depth=4)
 print(labels)
 print(output)
+
