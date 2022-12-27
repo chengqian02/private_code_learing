@@ -1,0 +1,222 @@
+import openpyxl
+from xlwt import *
+import re
+import os
+import sys
+print("Opening workbook...")
+import csv
+def get_index_name(id_name):
+    wb_id = openpyxl.load_workbook('绩效指标导入模板 (6)(已自动还原).xlsx')
+    sheetDataSet = wb_id['DataSheet']
+    ids = []
+    for i in sheetDataSet['C5':'C447']:
+        for j in i:
+            if j.value not in ids:
+                ids.append(j.value)
+    norm_top = ''
+    index_name = id_name.split('-')[0].rstrip()
+    for id in ids:
+        if index_name in id:
+            norm_top = id.split("##")[0]
+            break
+    if norm_top:
+        return norm_top
+    else:
+        print(index_name+" 没有找到")
+
+def get_evaluate_data(file_name):
+    # 获取评价表数据
+    wb_detail = openpyxl.load_workbook(file_name,data_only = True)
+    # sheet_detail = wb_detail[id_name]
+    sheet_name = []
+    for sheet_name_temp in wb_detail.sheetnames:
+        sheet_name.append(sheet_name_temp)
+        # break
+    # print(sheet_name)
+    result = []
+    for sub_sheet_name in sheet_name:
+        try:
+            sheet = wb_detail[sub_sheet_name]
+            if '评价表' not in sheet['A1'].value:
+                continue
+            norm_top = get_index_name(sub_sheet_name)
+            
+            all_detail = []
+            for i in range(3, sheet.max_row):
+                sheet_detail = [j.value for j in sheet['B'+str(i):'L'+str(i)][0]]
+                all_detail.append(sheet_detail)
+            i = 0
+            j = 1
+            for sub_data in all_detail:
+                if not sub_data[0]:
+                    continue
+                sub_result = {}
+
+                # 获取分组名称
+                sub_result['norm_type'] = norm_top+"##"+sub_sheet_name.split('-')[0]
+                sub_result['areaName'] = '日常工作'
+                # 获取指标名称
+                sub_result['norm_name'] = sub_data[1]
+                # 目标分值
+                sub_result['socre'] = sub_data[3]
+                # sub_result['usePolicy'] = "全局共享"
+                # 获取id
+                sub_result['norm_id'] = norm_top+'0'+str(j)
+                j+=1
+
+                # 获取指标描述
+                sub_result['indecatorDesc'] = sub_data[2]
+                # 获取考核标准
+                eval_1 = str(handle_text(all_detail[i][5],all_detail[i][4],1))
+                eval_2 = str(handle_text(all_detail[i+1][5],all_detail[i+1][4],2)) if all_detail[i+1][5] else ''+'\n'
+                eval_3 = str(handle_text(all_detail[i+2][5],all_detail[i+2][4],3)) if all_detail[i+2][5] else ''
+                sub_result['evalStandard'] = str(eval_1+eval_2+eval_3).rstrip()
+                # 定性
+                sub_result['qualitative'] = '定性'
+                # 获取行为稽核标准
+                audit_1 = str(handle_text2(all_detail[i][9],all_detail[i][4],1))+str(handle_text2(all_detail[i][10],all_detail[i][4],1))
+                audit_2 = str(handle_text2(all_detail[i+1][9],all_detail[i+1][4],2))+'\n' if all_detail[i+1][9] else ''+'\n'
+                audit_3 = str(handle_text2(all_detail[i+1][10],all_detail[i+1][4],2))+'\n' if all_detail[i+1][10] else ''+'\n'
+                audit_4 = str(handle_text2(all_detail[i+2][9],all_detail[i+2][4],3)) if all_detail[i+2][9] else ''
+                audit_5 = str(handle_text2(all_detail[i+2][10],all_detail[i+2][4],3)) if all_detail[i+2][10] else ''
+                sub_result['auditStandard'] = str(audit_1+audit_2+audit_3+audit_4+audit_5).rstrip()
+                result.append(sub_result)
+                i+=3
+        except Exception as e:
+            # print(traceback.format_exc())
+            print(e)
+    return result
+
+def get_check_data(file_name):
+    # 获取考核卡数据
+    wb_detail = openpyxl.load_workbook(file_name,data_only = True)
+    sheet_name = []
+    for sheet_name_temp in wb_detail.sheetnames:
+        sheet_name.append(sheet_name_temp)
+    result = []
+    for sub_sheet_name in sheet_name:
+        try:
+            sheet = wb_detail[sub_sheet_name]
+            if '考核卡' not in sheet['A1'].value:
+                continue
+            norm_top = get_index_name(sub_sheet_name)
+            all_detail = []
+            for i in range(3, sheet.max_row):
+                sheet_detail = [j.value for j in sheet['B'+str(i):'F'+str(i)][0]]
+                all_detail.append(sheet_detail)
+            i = 0
+            j = 1
+            for sub_data in all_detail:
+                if not sub_data[0]:
+                    continue
+                sub_result = {}
+
+                sub_result['norm_type'] = norm_top+"##"+sub_sheet_name.split('-')[0]
+                sub_result['areaName'] = '日常工作'
+                # 指标名称
+                sub_result['norm_name'] = sub_data[1]
+                # 分值
+
+                sub_result['socre'] = sub_data[4]
+                # id
+                sub_result['norm_id'] = norm_top+'0'+str(j)
+                j+=1
+                # sub_result['usePolicy'] = "全局共享"
+                # sub_result['evalStandard'] = str(handle_text(all_detail[i][3],1))
+                # 指标描述
+                sub_result['indecatorDesc'] = sub_data[2]
+                sub_result['evalStandard'] = ''
+                sub_result['qualitative'] = '定性'
+                detail_1 = str(handle_text2(all_detail[i][3],1))
+                sub_result['auditStandard'] = str(detail_1).rstrip()
+                result.append(sub_result)
+                i+=1
+        except Exception as e:
+            print(e)
+    return result
+
+def handle_text(content,score_val=0,index=1):
+    if not content:
+        return ''
+    result_content = ''
+    index_num = '\d[、,.]\w+'
+    score_re = '.*\d分\s*\w*'
+    
+    for sub_content in content.split('\n'):
+        sub_content = sub_content.rstrip().replace(' ','')
+        if not sub_content or sub_content == None:
+            continue
+        if not re.match(index_num,str(sub_content)):
+            sub_content = str(index)+'、'+sub_content
+        if not re.match(score_re,str(sub_content)):
+            sub_content = sub_content+str(score_val)+'分'
+        index +=1
+        result_content = result_content+sub_content+'\n'
+    return result_content
+
+
+def handle_text2(content, score_val=0, index=1):
+    if not content:
+        return ''
+    result_content = ''
+    index_num = '\d[、,.]\w+'
+    score_re = '.*\d分\s*\w*'
+
+    for sub_content in content.split('\n'):
+        sub_content = sub_content.rstrip().replace(' ', '')
+        if not sub_content or sub_content == None:
+            continue
+        if not re.match(index_num, str(sub_content)):
+            sub_content = str(index) + '、' + sub_content
+        # if not re.match(score_re,str(sub_content)):
+        #     sub_content = sub_content+str(score_val)+'分'
+        index += 1
+        result_content = result_content + sub_content + '\n'
+    return result_content
+
+def write_excel(result_list, file_name):
+    header = ['norm_type','areaName', 'norm_name','score(分值)' 'norm_id', 'indecatorDesc(描述)','evalStandard（评分标准）','qualitative', 'indecatorDesc（行为稽核）']
+    wb = openpyxl.Workbook()
+    sheet = wb.create_sheet(title='person',index=0)
+    for h_col in range(1, len(header)+1):
+        _ = sheet.cell(column=h_col, row=1, value="{0}".format(header[h_col-1]))
+    i=2
+    for result in result_list:
+        j = 1
+        for k,v in result.items():
+            _ = sheet.cell(row=i,column=j,value="{}".format(v))
+            j+=1
+        i+=1
+    wb.save(filename="{}".format(file_name+'.xlsx'))
+    
+
+def write_csv(result_list, file_name):
+    header = ['norm_id', 'norm_name', 'norm_type', 'usePolicy', 'evalStandard（评分标准）','indecatorDesc（行为稽核）', 'indecatorDesc',  'score(分值)']
+    with open('{}.csv'.format(file_name.split('/')[-1].split('.')[0])+'_import', 'w', encoding='utf-8', newline='') as file_obj:
+        # 1.创建DicetWriter对象
+        dictWriter = csv.DictWriter(file_obj, header)
+        # 2.写表头
+        dictWriter.writeheader()
+        # 3.写入数据(一次性写入多行)
+        dictWriter.writerows(result_list)
+        
+def main():
+    # os.chdir('./yue/')
+    allfile = os.listdir('file/')
+    all_list = []
+    for file in allfile:
+        file_name = "./file/"+file
+        result_list = []
+        result_list.extend(get_evaluate_data(file_name))
+        result_list.extend(get_check_data(file_name))
+        all_list.extend(result_list)
+    write_excel(all_list,"result_excel")
+        # write_csv(result_list, file_name)
+    
+if __name__ == "__main__":
+    # print(os.getcwd())
+    # f = open('./filename.txt', mode='r', encoding='utf-8')
+    # f.close()
+
+    main()
+    
